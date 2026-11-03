@@ -5,4 +5,4 @@
 set -euo pipefail
 
 sudo apt-get update
-sudo apt-get install -y iproute2 iptables util-linux
+sudo apt-get install -y iproute2 iptables util-linux jq zstd

@@ -1,11 +1,37 @@
 # Substrate microVM tests
 
-The normal `ci.yaml` pipeline calls `run-substrate-tests.yaml` through the
-existing PR and nightly entry points, with the same gate as other integration
-tests. The workflow checks out upstream `main` once and uses that revision
-for the worker, privileged and Kind microVM e2e suites. The Kind job uses
-upstream's default guest assets. It verifies test execution and uploads the
-results.
+The normal `ci.yaml` pipeline builds the Substrate agent, rootfs and standard
+Kata kernel, then calls `run-substrate-tests.yaml` with their artifact suffix.
+This uses the same test gate as the other integration tests, through the
+existing PR and nightly entry points.
+
+The `substrate-microvm-e2e` job checks out upstream `main` and runs the Kind
+microVM e2e suites against the candidate guest. Substrate provisions its normal
+assets, including Cloud Hypervisor and virtiofsd. The Kind job uploads only the
+candidate rootfs and standard Kata kernel, then clones Substrate's default
+`SandboxConfig` version and replaces those two references. Other assets and
+architectures retain their upstream values. The upstream source and asset
+cache are unchanged. Test results include both configurations and candidate
+SHA-256 hashes.
+
+Before and after the suite, CI checks the live `SandboxConfig` against the
+candidate rootfs and kernel hashes. It computes Substrate's bundle hash and
+compares it with the default runtime reported by active microVM workers through
+`kubectl ate get workers`. Missing workers or a mismatched configuration,
+architecture or runtime hash fail the job. The log prints the artifact and
+bundle hashes, and the results include the observed configuration, registered
+worker runtimes and verification summary for both checks.
+
+The existing amd64 and arm64 build workflows build `agent-substrate` and
+`rootfs-image-substrate` in their normal component matrices. Their existing
+archive step selects only the Substrate rootfs and standard kernel for
+`kata-static-substrate.tar.zst`. Other release archive allowlists exclude
+Substrate components. Substrate components use separate artifact names so
+kata-deploy's artifact downloads do not collect them.
+
+The normal release workflow publishes
+`kata-static-substrate-VERSION-ARCH.tar.zst` alongside Kata's other archives.
+Host binaries and other kernel variants are excluded.
 
 `run.sh` also defaults to upstream `main`; `SUBSTRATE_REF` selects another ref.
 The runner reports the tested commit and leaves the upstream test source
@@ -13,7 +39,9 @@ unchanged. An existing checkout must be clean and match the selected ref.
 All modes require Linux, Git and the Go toolchain required by Substrate's
 `go.mod`. GitHub Actions reads the toolchain version from that checkout.
 
-Run the microVM worker and VMM packages, plus the shared OCI specification tests:
+The upstream Go worker/VMM tests are available locally; they do not boot the
+candidate guest and are not run in this CI workflow. To run them, plus the
+shared OCI specification tests:
 
 ```bash
 bash tests/integration/substrate/run.sh unit /tmp/substrate-tests

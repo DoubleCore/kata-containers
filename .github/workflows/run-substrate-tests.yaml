@@ -1,4 +1,4 @@
-name: Substrate microVM tests
+name: Substrate microVM e2e
 
 on:
   workflow_call:
@@ -10,6 +10,9 @@ on:
         required: false
         type: string
         default: ''
+      tarball-suffix:
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -19,47 +22,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  microvm:
-    outputs:
-      substrate-commit: ${{ steps.substrate.outputs.commit }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - name: Checkout Kata
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ inputs.commit-hash || github.sha }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Rebase onto the target branch
-        run: tests/git-helper.sh rebase-atop-of-the-latest-target-branch
-        env:
-          TARGET_BRANCH: ${{ inputs.target-branch }}
-      - name: Checkout Substrate main
-        id: substrate
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: agent-substrate/substrate
-          ref: main
-          path: substrate
-          persist-credentials: false
-      - name: Set up Substrate's Go toolchain
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
-        with:
-          go-version-file: substrate/go.mod
-          cache-dependency-path: substrate/go.sum
-      - name: Install test dependencies
-        run: tests/integration/substrate/setup.sh
-      - name: Run microVM worker and VMM tests
-        run: tests/integration/substrate/ci.sh unit substrate
-      - name: Run privileged microVM tests
-        run: tests/integration/substrate/ci.sh root substrate
-
-  microvm-e2e:
-    needs: microvm
+  substrate-microvm-e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
+      SUBSTRATE_ASSET_DIR: ${{ github.workspace }}/candidate-substrate
       KIND_CLUSTER_NAME: kata-substrate
       ATE_ATENET_DATAPLANE: envoy
       E2E_ATENET_DATAPLANE: envoy
@@ -85,7 +52,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: agent-substrate/substrate
-          ref: ${{ needs.microvm.outputs.substrate-commit }}
+          ref: main
           path: substrate
           persist-credentials: false
       - name: Set up Substrate's Go toolchain
@@ -102,6 +69,13 @@ jobs:
           buildkitd-config-inline: |
             [registry."localhost:5001"]
               http = true
+      - name: Download candidate guest archive
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: kata-static-substrate-tarball-amd64${{ inputs.tarball-suffix }}
+          path: candidate-archive
+      - name: Extract candidate rootfs and kernel
+        run: tests/integration/substrate/extract-artifacts.sh candidate-archive/kata-static-substrate.tar.zst "${SUBSTRATE_ASSET_DIR}"
       - name: Deploy Substrate and run microVM e2e suites
         run: tests/integration/substrate/e2e-ci.sh run substrate
       - name: Verify test execution and report failures

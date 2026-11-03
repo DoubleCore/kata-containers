@@ -115,6 +115,9 @@ assets:
       aarch64:
         name: "ubuntu"
         version: "resolute"  # 26.04 LTS
+        substrate:
+          name: "debian"
+          version: "trixie-slim"
         confidential:
           name: "ubuntu"
           version: "resolute"  # 26.04 LTS
@@ -142,6 +145,9 @@ assets:
       x86_64:
         name: "ubuntu"
         version: "resolute"  # 26.04 LTS
+        substrate:
+          name: "debian"
+          version: "trixie-slim"
         confidential:
           name: "ubuntu"
           version: "resolute"  # 26.04 LTS
@@ -217,6 +223,10 @@ assets:
 
 externals:
   description: "Third-party projects used by the system"
+
+  substrate:
+    description: "Substrate guest image"
+    image: "debian:trixie-slim"
 
   nvrc:
     # yamllint disable-line rule:line-length
